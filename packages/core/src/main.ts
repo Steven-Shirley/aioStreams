@@ -1168,6 +1168,8 @@ ${errorStreams.length > 0 ? `  âŒ Errors     : ${errorStreams.map((s) => `    â
   }
 
   private validateAddon(addon: Addon) {
+    const manifestUrl = new URL(addon.manifestUrl);
+    const baseUrl = Env.BASE_URL ? new URL(Env.BASE_URL) : undefined;
     if (this.userData.uuid && addon.manifestUrl.includes(this.userData.uuid)) {
       logger.warn(
         `${this.userData.uuid} detected to be trying to cause infinite self scraping`
@@ -1176,8 +1178,9 @@ ${errorStreams.length > 0 ? `  âŒ Errors     : ${errorStreams.map((s) => `    â
         `${addon.identifyingName} appears to be trying to scrape the current user's AIOStreams instance.`
       );
     } else if (
-      Env.BASE_URL &&
-      new URL(addon.manifestUrl).host === new URL(Env.BASE_URL).host &&
+      ((baseUrl && manifestUrl.host === baseUrl.host) ||
+        (manifestUrl.host.startsWith('localhost') &&
+          manifestUrl.port === Env.PORT.toString())) &&
       Env.DISABLE_SELF_SCRAPING === true
     ) {
       throw new Error(
@@ -1193,12 +1196,10 @@ ${errorStreams.length > 0 ? `  âŒ Errors     : ${errorStreams.map((s) => `    â
           addon.presetType
         )}`
       );
-    } else if (
-      FeatureControl.disabledHosts.has(new URL(addon.manifestUrl).host)
-    ) {
+    } else if (FeatureControl.disabledHosts.has(manifestUrl.host)) {
       throw new Error(
         `Addon ${addon.identifyingName} is disabled: ${FeatureControl.disabledHosts.get(
-          new URL(addon.manifestUrl).host
+          manifestUrl.host
         )}`
       );
     }
@@ -2642,11 +2643,7 @@ ${errorStreams.length > 0 ? `  âŒ Errors     : ${errorStreams.map((s) => `    â
           const index = userData.preferredEncodes?.findIndex(
             (encode) => encode === (stream.parsedFile?.encode || 'Unknown')
           );
-          if (index === -1) {
-            return multiplier * -Infinity;
-          } else {
-            return multiplier * -index;
-          }
+          return multiplier * -(index === -1 ? Infinity : index);
         }
         case 'addon':
           // find the first occurence of the stream.addon.id in the addons array
@@ -2657,11 +2654,7 @@ ${errorStreams.length > 0 ? `  âŒ Errors     : ${errorStreams.map((s) => `    â
           const idx = userData.presets.findIndex(
             (p) => p.instanceId === stream.addon.presetInstanceId
           );
-          if (idx === -1) {
-            return multiplier * -Infinity;
-          } else {
-            return multiplier * -idx;
-          }
+          return multiplier * -(idx === -1 ? Infinity : idx);
 
         case 'resolution': {
           if (!userData.preferredResolutions) {
@@ -2672,26 +2665,17 @@ ${errorStreams.length > 0 ? `  âŒ Errors     : ${errorStreams.map((s) => `    â
             (resolution) =>
               resolution === (stream.parsedFile?.resolution || 'Unknown')
           );
-          if (index === -1) {
-            return multiplier * -Infinity;
-          } else {
-            return multiplier * -index;
-          }
+          return multiplier * -(index === -1 ? Infinity : index);
         }
         case 'quality': {
           if (!userData.preferredQualities) {
             return 0;
           }
 
-          const effectiveQuality = stream.parsedFile?.quality || 'Unknown';
           const index = userData.preferredQualities.findIndex(
-            (quality) => quality === effectiveQuality
+            (quality) => quality === (stream.parsedFile?.quality || 'Unknown')
           );
-          if (index === -1) {
-            return multiplier * -Infinity;
-          } else {
-            return multiplier * -index;
-          }
+          return multiplier * -(index === -1 ? Infinity : index);
         }
         case 'visualTag': {
           if (!userData.preferredVisualTags) {
@@ -2757,11 +2741,7 @@ ${errorStreams.length > 0 ? `  âŒ Errors     : ${errorStreams.map((s) => `    â
           const index = userData.preferredStreamTypes?.findIndex(
             (type) => type === stream.type
           );
-          if (index === -1) {
-            return multiplier * -Infinity;
-          } else {
-            return multiplier * -index;
-          }
+          return multiplier * -(index === -1 ? Infinity : index);
         }
         case 'language': {
           let minLanguageIndex = userData.preferredLanguages?.length;
@@ -2782,12 +2762,6 @@ ${errorStreams.length > 0 ? `  âŒ Errors     : ${errorStreams.map((s) => `    â
             -(stream.regexMatched ? stream.regexMatched.index : Infinity)
           );
 
-        // return (
-        //   multiplier *
-        //   (stream.regexMatched ? -stream.regexMatched.index : -Infinity)
-        // );
-        // return multiplier * -(stream.regexMatched?.index ?? 0);
-
         case 'keyword':
           return multiplier * (stream.keywordMatched ? 1 : 0);
 
@@ -2799,11 +2773,7 @@ ${errorStreams.length > 0 ? `  âŒ Errors     : ${errorStreams.map((s) => `    â
           const index = userData.services.findIndex(
             (service) => service.id === stream.service?.id
           );
-          if (index === -1) {
-            return multiplier * -Infinity;
-          } else {
-            return multiplier * -index;
-          }
+          return multiplier * -(index === -1 ? Infinity : index);
         }
         default:
           return 0;
